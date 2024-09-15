@@ -1,0 +1,76 @@
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.x509 import load_pem_x509_certificate  
+from cryptography import x509
+
+def extract_x509_details_combined(cert_file):
+    """Extracts relevant details from an X.509 certificate and converts the issuer and serial number to the desired X.509 format.
+
+    Args:
+        cert_file: The path to the certificate file.
+
+    Returns:
+        A dictionary containing the extracted details:
+            - issuer: Issuer information as a list of tuples.
+            - subject: Subject information as a list of tuples.
+            - serial_number: Serial number of the certificate (integer).
+            - valid_from: NotBefore date of the certificate validity period.
+            - valid_to: NotAfter date of the certificate validity period.
+            - thumbprint: SHA-1 hash of the certificate.
+            - X509SHA1PublicKey: Fingerprint in X.509 format using SHA-1.
+            - X509SKI: Subject Key Identifier in X.509 format.
+            - X509IssuerSerialNumber: Issuer and serial number in the desired X.509 format.
+    """
+
+    with open(cert_file, 'rb') as cert_pem:
+        cert = load_pem_x509_certificate(cert_pem.read())
+
+
+    # Extract issuer and subject information
+    issuer = cert.issuer
+    subject = cert.subject
+
+    # Extract other details
+    serial_number = cert.serial_number
+    valid_from = cert.not_valid_before_utc
+    valid_to = cert.not_valid_after_utc
+
+    # Calculate SHA-1 thumbprint
+    thumbprint = cert.fingerprint(hashes.SHA1()).hex().upper()
+
+    # Generate X.509 formatted fingerprints
+    X509SHA1PublicKey = f'X509:<SHA1-PUKEY>{thumbprint}'
+
+    #X509SKI
+	  #subjectKeyIdbased on RFC 5280
+	  #	// SubjectKeyId generated using method 1 in RFC 5280, Section 4.2.1.2:
+	  #	//   (1) The keyIdentifier is composed of the 160-bit SHA-1 hash of the
+	  #	//   value of the BIT STRING subjectPublicKey (excluding the tag,
+	  #	//   length, and number of unused bits).
+    # Subject Key Identifier
+    ski_extension = cert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier)
+    ski_value = ski_extension.value.digest
+    X509SKI = f'X509:<SKI>{ski_value.hex().upper()}'
+
+    # X509IssuerSerialNumber
+    issuer_string = cert.issuer.rfc4514_string()
+    sr_hex = hex(serial_number)[2:].upper()  # Convert serial number to hexadecimal
+    X509IssuerSerialNumber = f'X509:<I>{issuer_string}<SR>{sr_hex}'
+
+
+
+    return {
+        'issuer': issuer,
+        'subject': subject,
+        'serial_number': serial_number,
+        'valid_from': valid_from,
+        'valid_to': valid_to,
+        'thumbprint': thumbprint,
+        'X509SHA1PublicKey': X509SHA1PublicKey,
+        'X509SKI': X509SKI,
+        'X509IssuerSerialNumber': X509IssuerSerialNumber,
+    }
+
+# Example usage
+cert_file = '66.165.167.157.crt'  # Replace with your actual certificate file
+details = extract_x509_details_combined(cert_file)
+print(details)
