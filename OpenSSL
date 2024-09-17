@@ -1,0 +1,78 @@
+import OpenSSL
+
+def extract_x509_details_combined(cert_file):
+  """Extracts relevant details from an X.509 certificate and converts the issuer and serial number to the desired X.509 format.
+
+  Args:
+    cert_file: The path to the certificate file.
+
+  Returns:
+    A dictionary containing the extracted details:
+      - issuer: Issuer information as a list of tuples.
+      - subject: Subject information as a list of tuples.
+      - serial_number: Serial number of the certificate (integer).
+      - valid_from: NotBefore date of the certificate validity period.
+      - valid_to: NotAfter date of the certificate validity period.
+      - thumbprint: SHA-1 hash of the certificate.
+      - X509SHA1PublicKey: Fingerprint in X.509 format using SHA-1.
+      - X509SKI: Subject Key Identifier in X.509 format.
+      - X509IssuerSerialNumber: Issuer and serial number in the desired X.509 format.
+  """
+
+  with open(cert_file, "rb") as f:
+    cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, f.read())
+
+  # Extract issuer and subject information
+  issuer = cert.get_issuer().get_components()
+  subject = cert.get_subject().get_components()
+
+  # Extract other details
+  serial_number = cert.get_serial_number()
+  valid_from = cert.get_notBefore()
+  valid_to = cert.get_notAfter()
+
+  # Calculate SHA-1 thumbprint
+  thumbprint = cert.digest("sha1").hex().upper()
+
+  # Generate X.509 formatted fingerprints
+  X509SHA1PublicKey = f"X509:<SHA1-PUKEY>{thumbprint}"
+
+  ski_ext = None
+  # Extract Subject Key Identifier (SKI)
+# Iterate through extensions and find the SubjectKeyIdentifier
+  for i in range(cert.get_extension_count()):
+      ext = cert.get_extension(i)
+      print (ext.get_short_name())
+      if ext.get_short_name().decode() == "subjectKeyIdentifier":
+          ski_ext = ext
+          break
+  # Check if the extension was found
+  if ski_ext:
+      ski_value = ski_ext.get_data()
+      print("SubjectKeyIdentifier:", ski_value)
+      X509SKI = f"X509:<SKI>{ski_value.hex()}"
+      # ***** Getting an extra 4 characters at the beginning of the string
+  else:
+      X509SKI = "SubjectKeyIdentifier not found."
+      print("SubjectKeyIdentifier extension not found.")
+
+  # Combine issuer and serial number
+  issuer_string = "/".join([f"{component[0]}={component[1]}" for component in issuer])
+  X509IssuerSerialNumber = f"X509:<I>{issuer_string}<SR>{(hex(serial_number)[2:]).upper()}"
+
+  return {
+    "issuer": issuer,
+    "subject": subject,
+    "serial_number": serial_number,
+    "valid_from": valid_from,
+    "valid_to": valid_to,
+    "thumbprint": thumbprint,
+    "X509SHA1PublicKey": X509SHA1PublicKey,
+    "X509SKI": X509SKI,
+    "X509IssuerSerialNumber": X509IssuerSerialNumber,
+  }
+
+# Example usage
+cert_file = "66.165.167.157.crt"  # Replace with the actual path to your certificate file
+details = extract_x509_details_combined(cert_file)
+print(details)
